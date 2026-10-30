@@ -1,0 +1,92 @@
+name: Build Windows installer
+
+on:
+  workflow_dispatch:            # Actions tab -> "Build Windows installer" -> Run workflow
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]              # git tag v1.2.0 && git push --tags  -> also creates a GitHub Release
+
+permissions:
+  contents: write               # needed to attach the installer to a Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Works wherever you uploaded the files: finds the folder that contains package.json
+      # (the repository root, or a sub-folder such as PDFEditor-Electron).
+      - name: Find the app folder
+        shell: bash
+        run: |
+          f=$(find . -name package.json -not -path '*/node_modules/*' | head -n 1)
+          if [ -z "$f" ]; then echo "package.json not found in the repository"; exit 1; fi
+          dir=$(dirname "$f")
+          echo "App folder: $dir"
+          echo "APP_DIR=$dir" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: '**/package-lock.json'
+
+      # A tag like v1.2.0 becomes the app version (PDFEditor-Setup-1.2.0.exe)
+      - name: Version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        working-directory: ${{ env.APP_DIR }}
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+
+      - name: Install (also copies pdf.js / pdf-lib / OCR files into app/vendor)
+        working-directory: ${{ env.APP_DIR }}
+        run: npm ci
+
+      - name: Unit tests
+        working-directory: ${{ env.APP_DIR }}
+        run: npm test
+
+      - name: Build installer + portable exe
+        working-directory: ${{ env.APP_DIR }}
+        run: npm run dist
+
+      # The INSTALLER: download this one, run it and follow the setup wizard.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PDFEditor-INSTALLER
+          path: ${{ env.APP_DIR }}/dist/PDFEditor-Setup-*.exe
+          if-no-files-found: error
+
+      # The PORTABLE exe does NOT install anything: it just opens the editor. Kept separate so it is not run by mistake.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PDFEditor-Portable-no-install
+          path: ${{ env.APP_DIR }}/dist/PDFEditor-Portable-*.exe
+          if-no-files-found: error
+
+      # Installs the fresh installer silently on the runner and checks that the app is registered
+      # for right-click > Open with on PDFs. A failure here shows as a red step but does not block the files above.
+      - name: Check install and "Open with" registration
+        continue-on-error: true
+        shell: pwsh
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          $setup = Get-ChildItem dist -Filter 'PDFEditor-Setup-*.exe' | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          Start-Sleep -Seconds 5
+          Get-Process PDFEditor -ErrorAction SilentlyContinue | Stop-Process -Force
+          $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter PDFEditor.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw 'PDFEditor.exe was not installed' }
+          $ids = (Get-ItemProperty 'HKCU:\Software\Classes\.pdf\OpenWithProgids').PSObject.Properties.Name
+          if ($ids -notcontains 'PDFEditor.AssocPDF') { throw 'PDF Editor is not listed under Open with' }
+          $cmd = (Get-ItemProperty 'HKCU:\Software\Classes\Applications\PDFEditor.exe\shell\open\command').'(default)'
+          Write-Host "Installed: $($exe.FullName)"
+          Write-Host "Open with command: $cmd"
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.APP_DIR }}/dist/*.exe
+          generate_release_notes: true
