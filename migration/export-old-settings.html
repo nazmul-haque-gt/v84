@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Export PDF Editor settings</title>
+<style>body{font:16px/1.5 Segoe UI,Arial,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222}
+button{font:inherit;padding:10px 18px;border:0;border-radius:6px;background:#d9202e;color:#fff;cursor:pointer}
+code{background:#eee;padding:1px 5px;border-radius:3px}.n{color:#555}</style></head>
+<body>
+<h2>Export PDF Editor settings (old Edge version)</h2>
+<p>Your toolbar, highlight, comment and AI settings (including the Gemini key) live in Edge's storage for this address,
+so the new desktop app cannot see them by itself. This page saves them to a small file you can import once.</p>
+<p><button id="go">Save settings file</button></p>
+<p id="out" class="n"></p>
+<p class="n">Then drag <code>pdfeditor-settings.json</code> onto the new PDF Editor shortcut (or its .exe). It asks before importing.
+Your PDFs are not affected: edits live inside the PDFs themselves.</p>
+<script>
+document.getElementById('go').onclick = function () {
+  var items = {}, n = 0;
+  try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); items[k] = localStorage.getItem(k); n++; } }
+  catch (e) { document.getElementById('out').textContent = 'Could not read settings: ' + e; return; }
+  var data = { app: 'PDFEditor', format: 1, exportedFrom: location.origin, exported: new Date().toISOString(), items: items };
+  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'pdfeditor-settings.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  document.getElementById('out').textContent = n + ' setting' + (n === 1 ? '' : 's') + ' saved to pdfeditor-settings.json (in your Downloads folder).';
+};
+</script></body></html>

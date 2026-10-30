@@ -1,0 +1,92 @@
+{
+  "name": "pdf-editor",
+  "productName": "PDFEditor",
+  "version": "83.0.0",
+  "description": "PDF Editor - offline desktop PDF editor (Electron, bundled Chromium)",
+  "main": "main.js",
+  "author": "PDF Editor",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "postinstall": "node scripts/prepare-vendor.js",
+    "vendor": "node scripts/prepare-vendor.js",
+    "start": "electron .",
+    "selftest": "electron . --selftest",
+    "test": "node test/unit.test.js",
+    "test:e2e": "node test/e2e/e2e.test.js",
+    "dist": "node scripts/prepare-vendor.js --check && electron-builder --win nsis portable --x64 --publish never",
+    "dist:installer": "node scripts/prepare-vendor.js --check && electron-builder --win nsis --x64 --publish never",
+    "dist:portable": "node scripts/prepare-vendor.js --check && electron-builder --win portable --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "pdfjs-dist": "3.11.174",
+    "pdf-lib": "1.17.1",
+    "tesseract.js": "5.1.1",
+    "tesseract.js-core": "5.1.1",
+    "@tesseract.js-data/eng": "1.0.0"
+  },
+  "build": {
+    "appId": "PDFEditor.App",
+    "productName": "PDFEditor",
+    "copyright": "PDF Editor",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "lib/**/*",
+      "app/**/*",
+      "scripts/selftest-page.js",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "app/icon.ico",
+      "app/icon-192.png",
+      "app/icon-512.png"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PDF Editor",
+      "uninstallDisplayName": "PDF Editor",
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "include": "build/installer.nsh",
+      "artifactName": "PDFEditor-Setup-${version}.${ext}",
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true
+    },
+    "portable": {
+      "artifactName": "PDFEditor-Portable-${version}.${ext}"
+    }
+  }
+}
